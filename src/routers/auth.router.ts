@@ -1,21 +1,24 @@
 import { Router } from 'express';
 
-import AuthController from './../controllers/auth.controller';
-
 import AuthMiddleware from './../middlewares/auth.middleware';
 
-const authController = new AuthController();
+import CatchUtil from './../utils/catch.util';
+
+import AuthController from './../controllers/auth.controller';
 
 const authMiddleware = AuthMiddleware.getInstance();
 
+const useCatch = CatchUtil.getUseCatch();
+const authController = new AuthController();
+
 const AuthRouter = Router();
 
-AuthRouter.post('/register', authController.register);
+AuthRouter.post('/register', useCatch(authController.register));
 
-AuthRouter.post('/login', authController.login);
+AuthRouter.post('/login', useCatch(authController.login));
 
-AuthRouter.get('/refresh-access-token', authController.refreshAccessToken);
+AuthRouter.get('/refresh-access-token', useCatch(authController.refreshAccessToken));
 
-AuthRouter.get('/user', authMiddleware.isAuthenticated, authController.getUser);
+AuthRouter.get('/user', useCatch(authMiddleware.isAuthenticated), useCatch(authController.getUser));
 
 export default AuthRouter;

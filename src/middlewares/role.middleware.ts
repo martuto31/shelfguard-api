@@ -1,27 +1,19 @@
 import { RequestHandler } from 'express';
 
-import loggerPino from 'pino';
+import CustomError from './../utils/custom-error.util';
 
 import { Role } from './../models/user.model';
 
 export default class RoleMiddleware {
 
-  private logger = loggerPino();
-
   public requireRole(...roles: Role[]): RequestHandler {
     return async (req, res, next) => {
-      const user = req.user;
-
-      if (!user) {
-        res.status(401).json();
-
-        return;
+      if (!req.user) {
+        throw new CustomError(401, 'Missing access token');
       }
 
-      if (!roles.includes(user.role)) {
-        res.status(403).json();
-
-        return;
+      if (!roles.includes(req.user.role)) {
+        throw new CustomError(403, 'Insufficient permissions');
       }
 
       next();

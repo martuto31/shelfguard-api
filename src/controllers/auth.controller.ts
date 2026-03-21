@@ -3,68 +3,49 @@ import mongoose from 'mongoose';
 import { RequestHandler } from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
-import loggerPino from 'pino';
+import CustomError from './../utils/custom-error.util';
 
-import { User } from './../models/user.model';
-import { Organization } from './../models/organization.model';
-import { RefreshToken } from './../models/refresh-token.model';
+import UserDataLayer from './../data-layer/user.data-layer';
+import OrganizationDataLayer from './../data-layer/organization.data-layer';
+import RefreshTokenDataLayer from './../data-layer/refresh-token.data-layer';
 
+import { Role } from './../models/user.model';
 import Config from './../config';
 
 export default class AuthController {
 
-  private logger = loggerPino();
+  private logContext = 'Auth Controller';
   private config = Config.getInstance();
+  private userDataLayer = UserDataLayer.getInstance();
+  private organizationDataLayer = OrganizationDataLayer.getInstance();
+  private refreshTokenDataLayer = RefreshTokenDataLayer.getInstance();
 
   public register: RequestHandler = async (req, res) => {
+    const logContext = `${this.logContext} -> register()`;
     const { name, email, password, organizationName } = req.body;
 
     if (!name || !email || !password || !organizationName) {
-      res.status(400).json();
-
-      return;
+      throw new CustomError(400, 'Missing fields: name | email | password | organizationName');
     }
 
-    const existingUser = await User.findOne({ email })
-      .catch(err => {
-        this.logger.error(err, 'User.findOne');
-      });
+    const existingUser = await this.userDataLayer.get({ email }, logContext);
 
     if (existingUser) {
-      res.status(409).json();
-
-      return;
+      throw new CustomError(409, 'Email already exist');
     }
 
-    const organization = await Organization.create({ name: organizationName })
-      .catch(err => {
-        this.logger.error(err, 'Organization.create');
-      });
+    const organization = await this.organizationDataLayer.create({ name: organizationName }, logContext);
 
-    if (!organization) {
-      res.status(500).json();
-
-      return;
-    }
-
-    const user = await User.create({
+    const user = await this.userDataLayer.create({
       name,
       email,
       password,
-      role: 'OWNER',
+      role: Role.OWNER,
       organizationId: organization._id,
-    }).catch(err => {
-      this.logger.error(err, 'User.create');
-    });
-
-    if (!user) {
-      res.status(500).json();
-
-      return;
-    }
+    }, logContext);
 
     const accessToken = this.createAccessJWT(user._id);
-    const refreshToken = await this.getRefreshToken(user._id);
+    const refreshToken = await this.getRefreshToken(user._id, logContext);
 
     res.header('Authorization-Access', accessToken);
     res.header('Authorization-Refresh', refreshToken);
@@ -74,44 +55,34 @@ export default class AuthController {
   }
 
   public login: RequestHandler = async (req, res) => {
+    const logContext = `${this.logContext} -> login()`;
     const { email, password } = req.body;
 
     if (!email || !password) {
-      res.status(404).json();
-
-      return;
+      throw new CustomError(400, 'Missing fields: email | password');
     }
 
-    const user = await User.findOne({ email })
-      .catch(err => {
-        this.logger.error(err, 'User.findOne');
-      });
+    const user = await this.userDataLayer.get({ email }, logContext, '+password');
 
     if (!user) {
-      res.status(404).json();
-
-      return;
+      throw new CustomError(404, 'No user found');
     }
 
     if (!user.active) {
-      res.status(403).json();
-
-      return;
+      throw new CustomError(403, 'Account is disabled');
     }
 
     const isPasswordValid = await bcryptjs.compare(password, user.password)
       .catch(err => {
-        this.logger.error(err, 'bcryptjs.compare');
+        throw new CustomError(500, err.message, `${logContext} -> bcryptjs.compare()`);
       });
 
     if (!isPasswordValid) {
-      res.status(401).json();
-
-      return;
+      throw new CustomError(401, 'Invalid password');
     }
 
     const accessToken = this.createAccessJWT(user._id);
-    const refreshToken = await this.getRefreshToken(user._id);
+    const refreshToken = await this.getRefreshToken(user._id, logContext);
 
     res.header('Authorization-Access', accessToken);
     res.header('Authorization-Refresh', refreshToken);
@@ -121,26 +92,19 @@ export default class AuthController {
   }
 
   public refreshAccessToken: RequestHandler = async (req, res) => {
-    const headers = req.headers;
-    const headerValue = headers['authorization-refresh'];
+    const logContext = `${this.logContext} -> refreshAccessToken()`;
+    const headerValue = req.headers['authorization-refresh'];
 
-    if (!headers || typeof headerValue !== 'string') {
-      res.status(401).json();
-
-      return;
+    if (!headerValue || typeof headerValue !== 'string') {
+      throw new CustomError(401, 'Missing refresh token');
     }
 
     const refreshToken = headerValue.split(' ')[1];
 
-    const userId = await this.getUserIdFromRefreshToken(refreshToken)
-      .catch(err => {
-        this.logger.error(err, 'this.getUserIdFromRefreshToken');
-      });
+    const userId = await this.getUserIdFromRefreshToken(refreshToken, logContext);
 
     if (!userId) {
-      res.status(401).json();
-
-      return;
+      throw new CustomError(401, 'Invalid refresh token');
     }
 
     const accessToken = this.createAccessJWT(userId);
@@ -152,53 +116,31 @@ export default class AuthController {
   }
 
   public getUser: RequestHandler = async (req, res) => {
-    const user = req.user;
-
-    if (!user) {
-      res.status(401).json();
-
-      return;
-    }
-
-    res.status(200).json(user);
+    res.status(200).json(req.user);
   }
 
-  private async getRefreshToken(userId: mongoose.Types.ObjectId): Promise<string> {
-    const currentToken = await RefreshToken.findOne({ userId })
-      .catch(err => {
-        this.logger.error(err, 'RefreshToken.findOne');
-      });
+  private async getRefreshToken(userId: mongoose.Types.ObjectId, logContext: string): Promise<string> {
+    const currentToken = await this.refreshTokenDataLayer.get({ userId }, logContext);
 
     if (currentToken) {
-      await RefreshToken.deleteOne({ _id: currentToken._id })
-        .catch(err => {
-          this.logger.error(err, 'RefreshToken.deleteOne');
-        });
+      await this.refreshTokenDataLayer.delete(currentToken._id, logContext);
     }
 
     const token = this.createRefreshJWT(userId);
 
-    const createRefreshToken = {
+    await this.refreshTokenDataLayer.create({
       userId,
       token: 'Bearer ' + token,
-    };
-
-    await RefreshToken.create(createRefreshToken)
-      .catch(err => {
-        this.logger.error(err, 'RefreshToken.create');
-      });
+    }, logContext);
 
     return token;
   }
 
-  private async getUserIdFromRefreshToken(token: string): Promise<mongoose.Types.ObjectId | null> {
+  private async getUserIdFromRefreshToken(token: string, logContext: string): Promise<mongoose.Types.ObjectId | null> {
     const decodedToken = jwt.verify(token, this.config.jwt.refreshSecret);
 
     if (decodedToken && decodedToken !== 'string' && (decodedToken as JwtPayload).userId) {
-      const refreshToken = await RefreshToken.findOne({ userId: (decodedToken as JwtPayload).userId })
-        .catch(err => {
-          this.logger.error(err, 'RefreshToken.findOne');
-        });
+      const refreshToken = await this.refreshTokenDataLayer.get({ userId: (decodedToken as JwtPayload).userId }, logContext);
 
       if (refreshToken && refreshToken.token === 'Bearer ' + token) {
         return (decodedToken as JwtPayload).userId;

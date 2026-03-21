@@ -2,9 +2,10 @@ import mongoose from 'mongoose';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { RequestHandler, Request } from 'express';
 
-import loggerPino from 'pino';
+import CustomError from './../utils/custom-error.util';
 
-import { User, UserDoc } from './../models/user.model';
+import UserDataLayer from './../data-layer/user.data-layer';
+import { UserDoc } from './../models/user.model';
 
 import Config from './../config';
 
@@ -18,40 +19,36 @@ declare global {
 
 export default class AuthMiddleware {
 
-  private logger = loggerPino();
+  private logContext = 'Auth Middleware';
   private config = Config.getInstance();
+  private userDataLayer = UserDataLayer.getInstance();
 
   public isAuthenticated: RequestHandler = async (req, res, next) => {
+    const logContext = `${this.logContext} -> isAuthenticated()`;
     const accessToken = this.getAccessTokenFromHeaders(req);
 
     if (!accessToken) {
-      return next(res.status(401).json());
+      throw new CustomError(401, 'Missing access token');
     }
 
     try {
       const userId = this.getUserIdFromAccessToken(accessToken);
-      const user = await User.findOne({ _id: userId })
-        .catch(err => {
-          this.logger.error(err, 'User.findOne');
-        });
 
-      if (!user) {
-        res.status(401).json()
-
-        return;
-      }
+      const user = await this.userDataLayer.getById(userId!, logContext);
 
       if (!user.active) {
-        res.status(403).json()
-
-        return;
+        throw new CustomError(403, 'Account is disabled');
       }
 
       req.user = user;
 
       next();
     } catch (err) {
-      next(res.status(498).json());
+      if (err instanceof CustomError) {
+        throw err;
+      }
+
+      throw new CustomError(498, 'Invalid or expired token');
     }
   }
 

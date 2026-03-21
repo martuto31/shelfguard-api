@@ -7,6 +7,8 @@ import loggerPino from 'pino';
 
 import MainRouter from './routers/main.router';
 
+import ErrorMiddleware from './middlewares/error.middleware';
+
 import Config from './config';
 
 const app = express();
@@ -16,6 +18,7 @@ const logger = loggerPino();
 app.use(cors());
 app.use(json());
 app.use(MainRouter);
+app.use(new ErrorMiddleware().init);
 
 app.listen(config.server.port, () => {
     logger.info('Server Started');
