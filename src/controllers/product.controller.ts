@@ -21,7 +21,7 @@ export default class ProductController {
 
   public create: RequestHandler = async (req, res) => {
     const logContext = `${this.logContext} -> create()`;
-    const { name, sku, category, unit, minStockThreshold } = req.body;
+    const { name, sku, category, unit, minStockThreshold, minShelfLifeDays } = req.body;
 
     if (!name || !sku) {
       throw new CustomError(400, 'Missing fields: name | sku');
@@ -39,6 +39,7 @@ export default class ProductController {
       category,
       unit,
       minStockThreshold,
+      minShelfLifeDays,
       organizationId: req.user.organizationId,
     }, logContext);
 
@@ -48,9 +49,9 @@ export default class ProductController {
   public update: RequestHandler = async (req, res) => {
     const logContext = `${this.logContext} -> update()`;
     const id = req.params.id as string;
-    const { name, sku, category, unit, minStockThreshold } = req.body;
+    const { name, sku, category, unit, minStockThreshold, minShelfLifeDays } = req.body;
 
-    const product = await this.productDataLayer.updateById(id, { name, sku, category, unit, minStockThreshold }, logContext);
+    const product = await this.productDataLayer.updateById(id, { name, sku, category, unit, minStockThreshold, minShelfLifeDays }, logContext);
 
     res.status(200).json(product);
   }

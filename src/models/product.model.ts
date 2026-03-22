@@ -6,6 +6,7 @@ interface IProduct {
     category: string;
     unit: string;
     minStockThreshold: number;
+    minShelfLifeDays: number;
     organizationId: Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
@@ -29,6 +30,11 @@ const ProductSchema = new Schema<IProduct>({
         default: 'pcs',
     },
     minStockThreshold: {
+        type: Number,
+        required: true,
+        default: 0,
+    },
+    minShelfLifeDays: {
         type: Number,
         required: true,
         default: 0,
