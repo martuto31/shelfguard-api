@@ -7,10 +7,13 @@ import BatchRouter from './batch.router';
 import PickRouter from './pick.router';
 import MovementRouter from './movement.router';
 import AnalyticsRouter from './analytics.router';
+import DashboardRouter from './dashboard.router';
 
 const MainRouter = Router();
 
 MainRouter.use('/api/v1/auth', AuthRouter);
+
+MainRouter.use('/api/v1/dashboard', DashboardRouter);
 
 MainRouter.use('/api/v1/suppliers', SupplierRouter);
 
