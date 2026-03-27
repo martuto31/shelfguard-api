@@ -18,6 +18,18 @@ interface ExpiredBatchItem {
   daysExpired: number;
 }
 
+interface ActiveBatchItem {
+  batchId: string;
+  batchNumber: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  unit: string;
+  quantityRemaining: number;
+  expiryDate: Date;
+  daysUntilExpiry: number;
+}
+
 interface WriteOffItem {
   batchId: string;
   productId: string;
@@ -62,6 +74,37 @@ export default class WriteOffService {
         quantityRemaining: batch.quantityRemaining,
         expiryDate: batch.expiryDate,
         daysExpired,
+      };
+    });
+  }
+
+  public async getActiveBatches(productId: string, organizationId: mongoose.Types.ObjectId, logContext: string): Promise<ActiveBatchItem[]> {
+    logContext = `${logContext} -> ${this.logContext} -> getActiveBatches()`;
+    const now = new Date();
+
+    const [batches, product] = await Promise.all([
+      this.batchDataLayer.getMany(
+        { productId, organizationId, quantityRemaining: { $gt: 0 }, expiryDate: { $gt: now } },
+        logContext,
+        [],
+        { expiryDate: 1 },
+      ),
+      this.productDataLayer.get({ _id: productId, organizationId }, logContext),
+    ]);
+
+    return batches.map(batch => {
+      const daysUntilExpiry = Math.ceil((new Date(batch.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      return {
+        batchId: batch._id.toString(),
+        batchNumber: batch.batchNumber,
+        productId: batch.productId.toString(),
+        productName: product?.name || 'Неизвестен',
+        sku: product?.sku || '',
+        unit: product?.unit || 'pcs',
+        quantityRemaining: batch.quantityRemaining,
+        expiryDate: batch.expiryDate,
+        daysUntilExpiry,
       };
     });
   }
@@ -127,4 +170,4 @@ export default class WriteOffService {
 
 }
 
-export { ExpiredBatchItem, WriteOffItem };
+export { ExpiredBatchItem, ActiveBatchItem, WriteOffItem };

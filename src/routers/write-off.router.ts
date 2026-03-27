@@ -19,6 +19,8 @@ const WriteOffRouter = Router();
 
 WriteOffRouter.get('/expired', useCatch(authMiddleware.isAuthenticated), useCatch(roleMiddleware.requireRole(Role.OWNER, Role.MANAGER)), useCatch(writeOffController.getExpired));
 
+WriteOffRouter.get('/batches/:productId', useCatch(authMiddleware.isAuthenticated), useCatch(roleMiddleware.requireRole(Role.OWNER, Role.MANAGER)), useCatch(writeOffController.getActiveBatches));
+
 WriteOffRouter.post('/confirm', useCatch(authMiddleware.isAuthenticated), useCatch(roleMiddleware.requireRole(Role.OWNER, Role.MANAGER)), useCatch(writeOffController.confirm));
 
 export default WriteOffRouter;

@@ -20,6 +20,19 @@ export default class WriteOffController {
     res.status(200).json(batches);
   }
 
+  public getActiveBatches: RequestHandler = async (req, res) => {
+    const logContext = `${this.logContext} -> getActiveBatches()`;
+    const productId = req.params.productId as string;
+
+    const batches = await this.writeOffService.getActiveBatches(
+      productId,
+      req.user.organizationId,
+      logContext,
+    );
+
+    res.status(200).json(batches);
+  }
+
   public confirm: RequestHandler = async (req, res) => {
     const logContext = `${this.logContext} -> confirm()`;
     const { items } = req.body;
