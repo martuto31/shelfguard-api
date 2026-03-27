@@ -1,4 +1,4 @@
-import mongoose, { FilterQuery } from 'mongoose';
+import mongoose, { FilterQuery, UpdateQuery } from 'mongoose';
 
 import CustomError from './../utils/custom-error.util';
 
@@ -44,6 +44,38 @@ export default class UserDataLayer {
       .select(projection)
       .catch(err => {
         throw new CustomError(500, err.message, `${logContext} -> id: ${id.toString()}`);
+      });
+
+    if (!user) {
+      throw new CustomError(404, 'No user found');
+    }
+
+    return user;
+  }
+
+  public async getMany(filter: FilterQuery<IUser>, logContext: string): Promise<UserDoc[]> {
+    logContext = `${logContext} -> ${this.logContext} -> getMany()`;
+
+    const users = await User.find(filter)
+      .select('-password')
+      .catch(err => {
+        throw new CustomError(500, err.message, `${logContext} -> filter: ${JSON.stringify(filter)}`);
+      });
+
+    return users;
+  }
+
+  public async updateById(id: string | mongoose.Types.ObjectId, update: UpdateQuery<IUser>, logContext: string): Promise<UserDoc> {
+    logContext = `${logContext} -> ${this.logContext} -> updateById()`;
+
+    if (!mongoose.isValidObjectId(id)) {
+      throw new CustomError(400, 'Invalid ID');
+    }
+
+    const user = await User.findByIdAndUpdate(id, update, { new: true })
+      .select('-password')
+      .catch(err => {
+        throw new CustomError(500, err.message, `${logContext} -> id: ${id.toString()} | update: ${JSON.stringify(update)}`);
       });
 
     if (!user) {

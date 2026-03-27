@@ -6,6 +6,7 @@ import ProductRouter from './product.router';
 import BatchRouter from './batch.router';
 import PickRouter from './pick.router';
 import MovementRouter from './movement.router';
+import UserRouter from './user.router';
 import WriteOffRouter from './write-off.router';
 import AnalyticsRouter from './analytics.router';
 import DashboardRouter from './dashboard.router';
@@ -25,6 +26,8 @@ MainRouter.use('/api/v1/batches', BatchRouter);
 MainRouter.use('/api/v1/picks', PickRouter);
 
 MainRouter.use('/api/v1/movements', MovementRouter);
+
+MainRouter.use('/api/v1/users', UserRouter);
 
 MainRouter.use('/api/v1/write-offs', WriteOffRouter);
 
