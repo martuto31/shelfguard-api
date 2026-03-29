@@ -9,6 +9,7 @@ import MovementRouter from './movement.router';
 import UserRouter from './user.router';
 import WriteOffRouter from './write-off.router';
 import AnalyticsRouter from './analytics.router';
+import ExportRouter from './export.router';
 import DashboardRouter from './dashboard.router';
 
 const MainRouter = Router();
@@ -32,5 +33,7 @@ MainRouter.use('/api/v1/users', UserRouter);
 MainRouter.use('/api/v1/write-offs', WriteOffRouter);
 
 MainRouter.use('/api/v1/analytics', AnalyticsRouter);
+
+MainRouter.use('/api/v1/exports', ExportRouter);
 
 export default MainRouter;
