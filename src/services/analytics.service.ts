@@ -95,16 +95,33 @@ export default class AnalyticsService {
 
     const activeBatches = batches.filter(b => b.quantityRemaining > 0);
     const expiredBatches = activeBatches.filter(b => b.expiryDate < now);
+    const allExpiredBatches = batches.filter(b => b.expiryDate < now);
 
     const batchesByProduct = this.groupBy(batches, b => b.productId.toString());
     const activeBatchesByProduct = this.groupBy(activeBatches, b => b.productId.toString());
     const batchesBySupplier = this.groupBy(batches, b => b.supplierId?.toString() || '');
 
-    const summary = this.computeSummary(products, activeBatches, expiredBatches, batches, movements, now);
+    const batchToSupplier = new Map<string, string>();
+    for (const batch of batches) {
+      if (batch.supplierId) batchToSupplier.set(batch._id.toString(), batch.supplierId.toString());
+    }
+
+    const adjustmentsByProduct = new Map<string, number>();
+    const adjustmentsBySupplier = new Map<string, number>();
+    for (const m of movements) {
+      if (m.type === 'ADJUSTMENT') {
+        const pid = m.productId.toString();
+        adjustmentsByProduct.set(pid, (adjustmentsByProduct.get(pid) || 0) + m.quantity);
+        const sid = batchToSupplier.get(m.batchId.toString());
+        if (sid) adjustmentsBySupplier.set(sid, (adjustmentsBySupplier.get(sid) || 0) + m.quantity);
+      }
+    }
+
+    const summary = this.computeSummary(products, activeBatches, expiredBatches, allExpiredBatches, batches, movements, adjustmentsByProduct, now);
     const stockByProduct = this.computeStockByProduct(products, activeBatchesByProduct);
     const expiryRisk = this.computeExpiryRisk(activeBatches, now);
-    const wasteByProduct = this.computeWasteByProduct(products, batchesByProduct, now);
-    const supplierPerformance = this.computeSupplierPerformance(suppliers, batchesBySupplier, now);
+    const wasteByProduct = this.computeWasteByProduct(products, batchesByProduct, adjustmentsByProduct, now);
+    const supplierPerformance = this.computeSupplierPerformance(suppliers, batchesBySupplier, adjustmentsBySupplier, now);
     const movementsByMonth = this.computeMovementsByMonth(movements);
 
     return { summary, stockByProduct, expiryRisk, wasteByProduct, supplierPerformance, movementsByMonth };
@@ -131,12 +148,16 @@ export default class AnalyticsService {
     products: any[],
     activeBatches: any[],
     expiredBatches: any[],
+    allExpiredBatches: any[],
     allBatches: any[],
     movements: any[],
+    adjustmentsByProduct: Map<string, number>,
     now: Date,
   ): AnalyticsSummary {
     const totalStock = activeBatches.reduce((sum, b) => sum + b.quantityRemaining, 0);
-    const expiredQuantity = expiredBatches.reduce((sum, b) => sum + b.quantityRemaining, 0);
+    const expiredOnShelf = expiredBatches.reduce((sum, b) => sum + b.quantityRemaining, 0);
+    const totalWrittenOff = Array.from(adjustmentsByProduct.values()).reduce((sum, v) => sum + v, 0);
+    const expiredQuantity = expiredOnShelf + totalWrittenOff;
     const totalReceived = allBatches.reduce((sum, b) => sum + b.quantityReceived, 0);
     const wasteRate = totalReceived > 0 ? (expiredQuantity / totalReceived) * 100 : 0;
 
@@ -163,7 +184,7 @@ export default class AnalyticsService {
     return {
       totalProducts: products.length,
       totalStock,
-      expiredBatches: expiredBatches.length,
+      expiredBatches: allExpiredBatches.length,
       expiredQuantity,
       lowStockProducts,
       picksThisMonth,
@@ -240,15 +261,16 @@ export default class AnalyticsService {
     return risk;
   }
 
-  private computeWasteByProduct(products: any[], batchesByProduct: Map<string, any[]>, now: Date): WasteByProduct[] {
+  private computeWasteByProduct(products: any[], batchesByProduct: Map<string, any[]>, adjustmentsByProduct: Map<string, number>, now: Date): WasteByProduct[] {
     return products.map(product => {
       const pid = product._id.toString();
       const productBatches = batchesByProduct.get(pid) || [];
       const totalReceived = productBatches.reduce((sum, b) => sum + b.quantityReceived, 0);
 
-      const totalWasted = productBatches
+      const expiredRemaining = productBatches
         .filter(b => b.expiryDate < now && b.quantityRemaining > 0)
         .reduce((sum, b) => sum + b.quantityRemaining, 0);
+      const totalWasted = expiredRemaining + (adjustmentsByProduct.get(pid) || 0);
 
       const wasteRate = totalReceived > 0 ? (totalWasted / totalReceived) * 100 : 0;
 
@@ -265,7 +287,7 @@ export default class AnalyticsService {
     .sort((a, b) => b.wasteRate - a.wasteRate);
   }
 
-  private computeSupplierPerformance(suppliers: any[], batchesBySupplier: Map<string, any[]>, now: Date): SupplierScore[] {
+  private computeSupplierPerformance(suppliers: any[], batchesBySupplier: Map<string, any[]>, adjustmentsBySupplier: Map<string, number>, now: Date): SupplierScore[] {
     return suppliers.map(supplier => {
       const sid = supplier._id.toString();
       const supplierBatches = batchesBySupplier.get(sid) || [];
@@ -278,9 +300,10 @@ export default class AnalyticsService {
         ? Math.round(shelfLifeDays.reduce((sum, d) => sum + d, 0) / shelfLifeDays.length)
         : 0;
 
-      const wastedQuantity = supplierBatches
+      const expiredRemaining = supplierBatches
         .filter(b => b.expiryDate < now && b.quantityRemaining > 0)
         .reduce((sum, b) => sum + b.quantityRemaining, 0);
+      const wastedQuantity = expiredRemaining + (adjustmentsBySupplier.get(sid) || 0);
 
       return {
         supplierId: sid,
