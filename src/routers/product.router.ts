@@ -17,7 +17,7 @@ const productController = new ProductController();
 
 const ProductRouter = Router();
 
-ProductRouter.get('/', useCatch(authMiddleware.isAuthenticated), useCatch(roleMiddleware.requireRole(Role.OWNER, Role.MANAGER)), useCatch(productController.getAll));
+ProductRouter.get('/', useCatch(authMiddleware.isAuthenticated), useCatch(roleMiddleware.requireRole(Role.OWNER, Role.MANAGER, Role.WORKER)), useCatch(productController.getAll));
 
 ProductRouter.post('/', useCatch(authMiddleware.isAuthenticated), useCatch(roleMiddleware.requireRole(Role.OWNER, Role.MANAGER)), useCatch(productController.create));
 

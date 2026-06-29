@@ -45,7 +45,7 @@ export default class ExportService {
       ['Изтекли партиди', `${s.expiredBatches}`],
       ['Изтекло количество', `${s.expiredQuantity}`],
       ['Нисък запас', `${s.lowStockProducts}`],
-      ['Пикирано (месец)', `${s.picksThisMonth}`],
+      ['Изведено (месец)', `${s.picksThisMonth}`],
       ['Загуби', `${s.wasteRate}%`],
     ];
 
@@ -142,7 +142,7 @@ export default class ExportService {
     if (data.movementsByMonth.length > 0) {
       this.drawSectionTitle(doc, 'Движения по месеци');
 
-      const movHeaders = ['Месец', 'Получено (IN)', 'Пикирано (OUT)', 'Нетно'];
+      const movHeaders = ['Месец', 'Получено (IN)', 'Изведено (OUT)', 'Нетно'];
       const movWidths = [120, 100, 100, 100];
       const movRows = data.movementsByMonth.map(item => [
         item.month,

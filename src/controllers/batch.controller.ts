@@ -37,7 +37,7 @@ export default class BatchController {
       productId,
       type: MovementType.IN,
       quantity,
-      reason: 'Stock received',
+      reason: 'Приемане на стока',
       performedBy: req.user._id,
       organizationId: req.user.organizationId,
     }, logContext);
