@@ -20,8 +20,9 @@ app.use(json());
 app.use(MainRouter);
 app.use(new ErrorMiddleware().init);
 
-app.listen(config.server.port, () => {
-    logger.info('Server Started');
+const port = config.server.port;
+app.listen(port, '0.0.0.0', () => {
+    logger.info(`Server Started — listening on 0.0.0.0:${port} (process.env.PORT=${process.env.PORT ?? 'UNSET'})`);
 });
 
 mongoose.connect(config.databaseUri)
